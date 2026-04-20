@@ -1,0 +1,13 @@
+name = "PDDL"
+grammar = "pddl"
+path_suffixes = ["pddl"]
+line_comments = ["; "]
+autoclose_before = "])"
+brackets = [
+  { start = "(", end = ")", close = true, newline = false },
+  { start = "\"", end = "\"", close = true, newline = false, not_in = ["comment", "string"] },
+]
+
+# Basic sexp indentation. Most PDDL structure is parentheses-driven.
+increase_indent_pattern = "\\(\\s*$"
+decrease_indent_pattern = "^\\s*\\)"

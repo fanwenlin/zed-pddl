@@ -1,0 +1,3 @@
+[submodule "tree-sitter-pddl"]
+	path = tree-sitter-pddl
+	url = git@github.com:fanwenlin/tree-sitter-pddl.git

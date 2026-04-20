@@ -1,0 +1,32 @@
+id = "pddl"
+name = "PDDL"
+version = "0.1.0"
+schema_version = 1
+description = "PDDL language support for Zed."
+repository = "https://github.com/fanwenlin/zed-pddl"
+authors = ["fanwenlin"]
+themes = []
+icon_themes = []
+languages = ["languages/pddl"]
+capabilities = []
+
+[lib]
+kind = "Rust"
+version = "0.1.0"
+
+[grammars.pddl]
+repository = "https://github.com/fanwenlin/tree-sitter-pddl"
+rev = "355c6a7e2e31bd155cabd242efd334b07268c8e3"
+
+[language_servers.pddl-semantic]
+name = "PDDL LSP"
+languages = ["PDDL"]
+
+[language_servers.pddl-semantic.language_ids]
+PDDL = "pddl"
+
+[context_servers]
+
+[agent_servers]
+
+[slash_commands]
