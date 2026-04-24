@@ -272,3 +272,140 @@ test("publishes ANTLR syntax diagnostics for malformed documents", async () => {
     JSON.stringify(params.diagnostics, null, 2),
   );
 });
+
+test("publishes semantic diagnostics for unresolved PDDL references", async () => {
+  const client = new JsonRpcClient();
+  const rootUri = new URL(`file://${path.dirname(PROBLEM)}/`).toString();
+  const domainUri = new URL(`file://${path.resolve(path.dirname(PROBLEM), "semantic-domain.pddl")}`).toString();
+  const problemUri = new URL(`file://${path.resolve(path.dirname(PROBLEM), "semantic-problem.pddl")}`).toString();
+
+  await client.request("initialize", {
+    processId: null,
+    rootUri,
+    capabilities: {},
+    workspaceFolders: [{ uri: rootUri, name: "samples" }],
+  });
+
+  client.notify("initialized", {});
+  client.notify("textDocument/didOpen", {
+    textDocument: {
+      uri: domainUri,
+      languageId: "pddl",
+      version: 1,
+      text: `(define (domain semantic)
+  (:requirements :strips :typing)
+  (:types block)
+  (:predicates (clear ?x - block))
+  (:functions (height ?x - block) - number))`,
+    },
+  });
+  client.notify("textDocument/didOpen", {
+    textDocument: {
+      uri: problemUri,
+      languageId: "pddl",
+      version: 1,
+      text: `(define (problem semantic-problem)
+  (:domain semantic)
+  (:objects a b - block)
+  (:init
+    (clear a b)
+    (missing a)
+    (= (height a b) 1))
+  (:goal (clear a)))`,
+    },
+  });
+
+  const diagnostics = await client.waitForNotification(
+    "textDocument/publishDiagnostics",
+    (message) => {
+      const params = message.params as { uri?: string; diagnostics?: Array<{ source?: string }> };
+      return (
+        params.uri === problemUri &&
+        (params.diagnostics?.some((diagnostic) => diagnostic.source === "pddl-semantic") ?? false)
+      );
+    },
+  );
+
+  await client.shutdown();
+
+  const params = diagnostics.params as {
+    diagnostics: Array<{ source?: string; severity?: number; message?: string }>;
+  };
+  const messages = params.diagnostics.map((diagnostic) => diagnostic.message ?? "");
+  assert.ok(messages.some((message) => message.includes("`clear` expects 1 argument")));
+  assert.ok(messages.some((message) => message.includes("Undefined predicate or function `missing`")));
+  assert.ok(messages.some((message) => message.includes("`height` expects 1 argument")));
+  assert.equal(client.stderr, "");
+});
+
+test("refreshes open problem diagnostics after a domain document opens", async () => {
+  const client = new JsonRpcClient();
+  const rootUri = new URL(`file://${path.dirname(PROBLEM)}/`).toString();
+  const domainUri = new URL(`file://${path.resolve(path.dirname(PROBLEM), "late-domain.pddl")}`).toString();
+  const problemUri = new URL(`file://${path.resolve(path.dirname(PROBLEM), "late-problem.pddl")}`).toString();
+
+  await client.request("initialize", {
+    processId: null,
+    rootUri,
+    capabilities: {},
+    workspaceFolders: [{ uri: rootUri, name: "samples" }],
+  });
+
+  client.notify("initialized", {});
+  client.notify("textDocument/didOpen", {
+    textDocument: {
+      uri: problemUri,
+      languageId: "pddl",
+      version: 1,
+      text: `(define (problem late-problem)
+  (:domain late)
+  (:init)
+  (:goal (ready)))`,
+    },
+  });
+
+  await client.waitForNotification(
+    "textDocument/publishDiagnostics",
+    (message) => {
+      const params = message.params as { uri?: string; diagnostics?: Array<{ message?: string }> };
+      return (
+        params.uri === problemUri &&
+        (params.diagnostics?.some((diagnostic) =>
+          diagnostic.message?.includes("No domain file found for `late`"),
+        ) ?? false)
+      );
+    },
+  );
+
+  client.notify("textDocument/didOpen", {
+    textDocument: {
+      uri: domainUri,
+      languageId: "pddl",
+      version: 1,
+      text: `(define (domain late)
+  (:requirements :strips)
+  (:predicates (ready)))`,
+    },
+  });
+
+  const refreshed = await client.waitForNotification(
+    "textDocument/publishDiagnostics",
+    (message) => {
+      const params = message.params as { uri?: string; diagnostics?: Array<{ message?: string }> };
+      return (
+        params.uri === problemUri &&
+        (params.diagnostics?.every((diagnostic) =>
+          !diagnostic.message?.includes("No domain file found for `late`"),
+        ) ?? false)
+      );
+    },
+  );
+
+  await client.shutdown();
+
+  const params = refreshed.params as {
+    diagnostics: Array<{ source?: string; severity?: number; message?: string }>;
+  };
+  assert.equal(params.diagnostics.length, 0, JSON.stringify(params.diagnostics, null, 2));
+  assert.equal(client.stderr, "");
+});

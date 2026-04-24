@@ -13,6 +13,7 @@ import {
   getPddlWorkspaceDiagnostics,
 } from "./diagnostics";
 import { LspPddlWorkspace } from "./pddl-workspace";
+import { getSemanticDiagnostics } from "./semantic-diagnostics";
 import {
   getSemanticTokens,
   SEMANTIC_TOKEN_MODIFIERS,
@@ -33,13 +34,23 @@ const workspace = new LspPddlWorkspace(documents);
 async function publishDiagnostics(uri: string): Promise<void> {
   const fileInfo = await workspace.ensureParsed(uri);
   const document = await workspace.getTextDocument(uri);
+  const syntaxDiagnostics = getAntlrSyntaxDiagnostics(document);
   const diagnostics = [
     ...(fileInfo
       ? getPddlWorkspaceDiagnostics(fileInfo.getParsingProblems())
       : []),
-    ...getAntlrSyntaxDiagnostics(document),
+    ...syntaxDiagnostics,
+    ...(syntaxDiagnostics.length === 0
+      ? await getSemanticDiagnostics(workspace, document)
+      : []),
   ];
   connection.sendDiagnostics({ uri, diagnostics });
+}
+
+async function publishDiagnosticsForOpenDocuments(): Promise<void> {
+  for (const document of documents.all()) {
+    await publishDiagnostics(document.uri);
+  }
 }
 
 connection.onInitialize(() => ({
@@ -72,21 +83,22 @@ connection.onInitialize(() => ({
 
 documents.onDidOpen(async (event) => {
   await workspace.upsertAndParseDocument(event.document);
-  await publishDiagnostics(event.document.uri);
+  await publishDiagnosticsForOpenDocuments();
 });
 
 documents.onDidChangeContent(async (event) => {
   await workspace.upsertAndParseDocument(event.document);
-  await publishDiagnostics(event.document.uri);
+  await publishDiagnosticsForOpenDocuments();
 });
 
 documents.onDidSave(async (event) => {
   await workspace.upsertAndParseDocument(event.document);
-  await publishDiagnostics(event.document.uri);
+  await publishDiagnosticsForOpenDocuments();
 });
 
-documents.onDidClose((event) => {
+documents.onDidClose(async (event) => {
   connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+  await publishDiagnosticsForOpenDocuments();
 });
 
 connection.onHover(async (params) => {
