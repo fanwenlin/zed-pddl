@@ -429,3 +429,80 @@ test("refreshes open problem diagnostics after a domain document opens", async (
   assert.equal(params.diagnostics.length, 0, JSON.stringify(params.diagnostics, null, 2));
   assert.equal(client.stderr, "");
 });
+
+test("provides a quick fix for missing requirement diagnostics", async () => {
+  const client = new JsonRpcClient();
+  const rootUri = new URL(`file://${path.dirname(PROBLEM)}/`).toString();
+  const domainUri = new URL(`file://${path.resolve(path.dirname(PROBLEM), "requirements-fix-domain.pddl")}`).toString();
+
+  try {
+    const initialize = (await client.request("initialize", {
+      processId: null,
+      rootUri,
+      capabilities: {},
+      workspaceFolders: [{ uri: rootUri, name: "samples" }],
+    })) as { capabilities: Record<string, unknown> };
+
+    client.notify("initialized", {});
+    client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: domainUri,
+        languageId: "pddl",
+        version: 1,
+        text: `(define (domain requirements-fix)
+  (:requirements :typing)
+  (:types block)
+  (:predicates (ready))
+  (:functions (score) - number)
+  (:action wait
+    :parameters ()
+    :precondition (ready)
+    :effect (increase (score) 1)))`,
+      },
+    });
+
+    const diagnosticsNotification = await client.waitForNotification(
+      "textDocument/publishDiagnostics",
+      (message) => {
+        const params = message.params as { uri?: string; diagnostics?: Array<{ message?: string }> };
+        return (
+          params.uri === domainUri &&
+          (params.diagnostics?.some((diagnostic) =>
+            diagnostic.message?.includes("Missing :fluents requirement"),
+          ) ?? false)
+        );
+      },
+    );
+
+    const diagnostics = (diagnosticsNotification.params as {
+      diagnostics: Array<{ range: unknown; message?: string; source?: string }>;
+    }).diagnostics;
+    const diagnostic = diagnostics.find((item) =>
+      item.message?.includes("Missing :fluents requirement"),
+    );
+    assert.ok(diagnostic);
+
+    const actions = (await client.request("textDocument/codeAction", {
+      textDocument: { uri: domainUri },
+      range: diagnostic.range,
+      context: { diagnostics: [diagnostic] },
+    })) as Array<{
+      title?: string;
+      kind?: string;
+      edit?: { changes?: Record<string, Array<{ newText?: string }>> };
+    }>;
+
+    assert.deepEqual(initialize.capabilities.codeActionProvider, {
+      codeActionKinds: ["quickfix"],
+    });
+    assert.ok(actions.some((action) =>
+      action.title === "Add :fluents requirement" &&
+      action.kind === "quickfix" &&
+      action.edit?.changes?.[domainUri]?.some((edit) => edit.newText === " :fluents")
+    ));
+  } finally {
+    await client.shutdown();
+  }
+
+  assert.equal(client.stderr, "");
+});

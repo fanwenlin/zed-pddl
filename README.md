@@ -55,6 +55,7 @@ This validates:
 - `documentSymbol`
 - `documentHighlight`
 - `documentLink`
+- `codeAction` quick fixes for missing requirements
 - `semanticTokens/full`
 - syntax and semantic diagnostics
 

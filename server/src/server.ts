@@ -7,6 +7,7 @@ import {
   TextDocuments,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
+import { getCodeActions } from "./code-actions";
 import { getCompletionItems } from "./completion";
 import {
   getAntlrSyntaxDiagnostics,
@@ -65,6 +66,9 @@ connection.onInitialize(() => ({
     },
     definitionProvider: true,
     referencesProvider: true,
+    codeActionProvider: {
+      codeActionKinds: ["quickfix"],
+    },
     renameProvider: {
       prepareProvider: true,
     },
@@ -200,6 +204,16 @@ connection.onDocumentLinks(async (params) => {
 
   await workspace.ensureParsed(document.uri);
   return getDocumentLinks(workspace, document);
+});
+
+connection.onCodeAction(async (params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+
+  await workspace.ensureParsed(document.uri);
+  return getCodeActions(document, params.context.diagnostics);
 });
 
 connection.onCompletion(async (params): Promise<CompletionItem[]> => {
