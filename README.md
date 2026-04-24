@@ -7,7 +7,7 @@ Current scope:
 - `*.pddl` file association
 - line comments and bracket pairing
 - syntax highlighting for common PDDL forms and section keywords
-- Node-backed TypeScript LSP for diagnostics, hover, definitions, references, rename, symbols, completion, and semantic tokens
+- Node-backed TypeScript LSP for ANTLR syntax diagnostics, hover, signature help, definitions, references, rename, symbols, completion, and semantic tokens
 - ANTLR-generated TypeScript parser workspace for validating and summarizing PDDL documents
 - local dev-extension install flow for Zed
 
@@ -16,6 +16,7 @@ This extension uses the rebuilt `tree-sitter-pddl` grammar in `/Users/fwl/src/ze
 ## Local development
 
 1. Build the language server with `cd server && npm install && npm run build`.
+   The server build bootstraps the local ANTLR parser package under `experiments/antlr-pddl-ts`.
 2. Open Zed.
 3. Run `zed: install dev extension`.
 4. Select this repository.
@@ -46,6 +47,7 @@ This validates:
 
 - `initialize`
 - `hover`
+- `signatureHelp`
 - `definition`
 - `references`
 - `completion`

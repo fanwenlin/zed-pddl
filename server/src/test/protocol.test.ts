@@ -102,6 +102,26 @@ class JsonRpcClient {
     throw new Error(`Timed out waiting for ${method}\nstderr=${this.stderrBuffer}`);
   }
 
+  async waitForNotification(
+    method: string,
+    predicate: (message: JsonRpcMessage) => boolean = () => true,
+  ): Promise<JsonRpcMessage> {
+    const deadline = Date.now() + 5000;
+
+    while (Date.now() < deadline) {
+      const hit = this.messageQueue.find(
+        (message) => message.method === method && predicate(message),
+      );
+      if (hit) {
+        this.messageQueue = this.messageQueue.filter((message) => message !== hit);
+        return hit;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    throw new Error(`Timed out waiting for ${method}\nstderr=${this.stderrBuffer}`);
+  }
+
   async shutdown(): Promise<void> {
     await this.request("shutdown", null);
     this.notify("exit");
@@ -183,6 +203,11 @@ test("protocol smoke test covers semantic features", async () => {
     textDocument: { uri: domainUri },
   })) as { data?: number[] };
 
+  const signatureHelp = (await client.request("textDocument/signatureHelp", {
+    textDocument: { uri: problemUri },
+    position: { line: 14, character: 12 },
+  })) as { signatures?: Array<{ label?: string }> };
+
   await client.shutdown();
 
   assert.equal(initialize.capabilities.hoverProvider, true);
@@ -194,5 +219,56 @@ test("protocol smoke test covers semantic features", async () => {
   assert.deepEqual(Object.keys(rename.changes ?? {}).sort(), [domainUri, problemUri]);
   assert.ok(symbols.some((item) => item.name === "pickup"));
   assert.ok((semanticTokens.data?.length ?? 0) > 0);
+  assert.ok(
+    signatureHelp.signatures?.some((signature) =>
+      signature.label?.includes("(on ?x ?y - block)"),
+    ),
+  );
   assert.equal(client.stderr, "");
+});
+
+test("publishes ANTLR syntax diagnostics for malformed documents", async () => {
+  const client = new JsonRpcClient();
+  const rootUri = new URL(`file://${path.dirname(PROBLEM)}/`).toString();
+  const brokenUri = new URL(`file://${path.resolve(path.dirname(PROBLEM), "broken.pddl")}`).toString();
+
+  await client.request("initialize", {
+    processId: null,
+    rootUri,
+    capabilities: {},
+    workspaceFolders: [{ uri: rootUri, name: "samples" }],
+  });
+
+  client.notify("initialized", {});
+  client.notify("textDocument/didOpen", {
+    textDocument: {
+      uri: brokenUri,
+      languageId: "pddl",
+      version: 1,
+      text: `(define (domain broken)
+  (:predicates (ready)
+  (:action move
+    :parameters ()
+    :precondition (ready)
+    :effect (ready)))`,
+    },
+  });
+
+  const diagnostics = await client.waitForNotification(
+    "textDocument/publishDiagnostics",
+    (message) => {
+      const params = message.params as { uri?: string; diagnostics?: Array<{ source?: string }> };
+      return params.uri === brokenUri && (params.diagnostics?.length ?? 0) > 0;
+    },
+  );
+
+  await client.shutdown();
+
+  const params = diagnostics.params as {
+    diagnostics: Array<{ source?: string; severity?: number; message?: string }>;
+  };
+  assert.ok(
+    params.diagnostics.some((diagnostic) => diagnostic.source === "antlr-pddl-ts"),
+    JSON.stringify(params.diagnostics, null, 2),
+  );
 });

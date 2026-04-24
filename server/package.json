@@ -5,11 +5,13 @@
   "description": "PDDL language server for the Zed PDDL extension",
   "main": "dist/server.js",
   "scripts": {
+    "prebuild": "npm --prefix ../experiments/antlr-pddl-ts install && npm --prefix ../experiments/antlr-pddl-ts run build",
     "build": "tsc -p tsconfig.json && npm run bundle",
     "bundle": "esbuild dist/server.js --bundle --platform=node --format=cjs --outfile=dist/pddl-lsp.cjs",
     "test": "npm run build && node --test dist/test/**/*.test.js"
   },
   "dependencies": {
+    "@zed-pddl/antlr-pddl-ts": "file:../experiments/antlr-pddl-ts",
     "pddl-workspace": "^11.3.0",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.12",

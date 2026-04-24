@@ -1,22 +1,24 @@
 import {
   CompletionItem,
   createConnection,
-  Diagnostic,
-  DiagnosticSeverity,
   ProposedFeatures,
   SemanticTokensParams,
   TextDocumentSyncKind,
   TextDocuments,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { ParsingProblem } from "pddl-workspace";
 import { getCompletionItems } from "./completion";
+import {
+  getAntlrSyntaxDiagnostics,
+  getPddlWorkspaceDiagnostics,
+} from "./diagnostics";
 import { LspPddlWorkspace } from "./pddl-workspace";
 import {
   getSemanticTokens,
   SEMANTIC_TOKEN_MODIFIERS,
   SEMANTIC_TOKEN_TYPES,
 } from "./semantic";
+import { getSignatureHelp } from "./signature";
 import {
   buildRenameEdit,
   findSymbolReferences,
@@ -28,34 +30,15 @@ const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
 const workspace = new LspPddlWorkspace(documents);
 
-function toDiagnostic(problem: ParsingProblem): Diagnostic {
-  const severityMap: Record<string, DiagnosticSeverity> = {
-    error: DiagnosticSeverity.Error,
-    warning: DiagnosticSeverity.Warning,
-    info: DiagnosticSeverity.Information,
-    hint: DiagnosticSeverity.Hint,
-  };
-
-  return {
-    range: {
-      start: {
-        line: problem.range.start.line,
-        character: problem.range.start.character,
-      },
-      end: {
-        line: problem.range.end.line,
-        character: problem.range.end.character,
-      },
-    },
-    message: problem.problem,
-    severity: severityMap[problem.severity] ?? DiagnosticSeverity.Error,
-    source: "pddl-lsp",
-  };
-}
-
 async function publishDiagnostics(uri: string): Promise<void> {
   const fileInfo = await workspace.ensureParsed(uri);
-  const diagnostics = fileInfo?.getParsingProblems().map(toDiagnostic) ?? [];
+  const document = await workspace.getTextDocument(uri);
+  const diagnostics = [
+    ...(fileInfo
+      ? getPddlWorkspaceDiagnostics(fileInfo.getParsingProblems())
+      : []),
+    ...getAntlrSyntaxDiagnostics(document),
+  ];
   connection.sendDiagnostics({ uri, diagnostics });
 }
 
@@ -72,6 +55,10 @@ connection.onInitialize(() => ({
     completionProvider: {
       triggerCharacters: ["(", ":", "?", "-"],
       resolveProvider: false,
+    },
+    signatureHelpProvider: {
+      triggerCharacters: [" ", "("],
+      retriggerCharacters: [" "],
     },
     semanticTokensProvider: {
       legend: {
@@ -185,6 +172,16 @@ connection.onCompletion(async (params): Promise<CompletionItem[]> => {
 
   await workspace.ensureParsed(document.uri);
   return getCompletionItems(workspace, document, params.position);
+});
+
+connection.onSignatureHelp(async (params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return null;
+  }
+
+  await workspace.ensureParsed(document.uri);
+  return getSignatureHelp(workspace, document, params.position);
 });
 
 connection.languages.semanticTokens.on(

@@ -1,8 +1,10 @@
 {
-  "name": "antlr-pddl-ts-spike",
+  "name": "@zed-pddl/antlr-pddl-ts",
   "version": "0.1.0",
   "private": true,
   "description": "ANTLR + Pddl.g4 TypeScript parser spike for zed-pddl",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "scripts": {
     "generate": "antlr4ts -visitor -no-listener -o src/generated grammar/Pddl.g4",
     "build": "npm run generate && tsc -p tsconfig.json",
