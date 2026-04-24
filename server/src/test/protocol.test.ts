@@ -213,10 +213,15 @@ test("protocol smoke test covers semantic features", async () => {
     position: { line: 5, character: 7 },
   })) as Array<{ range?: { start?: { line?: number }; end?: { line?: number } } }>;
 
+  const links = (await client.request("textDocument/documentLink", {
+    textDocument: { uri: problemUri },
+  })) as Array<{ target?: string; range?: { start?: { line?: number; character?: number } } }>;
+
   await client.shutdown();
 
   assert.equal(initialize.capabilities.hoverProvider, true);
   assert.equal(initialize.capabilities.documentHighlightProvider, true);
+  assert.deepEqual(initialize.capabilities.documentLinkProvider, { resolveProvider: false });
   assert.match(hover.contents?.value ?? "", /Predicate/);
   assert.match(definition.uri ?? "", /domain\.pddl$/);
   assert.ok(references.length >= 2);
@@ -234,6 +239,11 @@ test("protocol smoke test covers semantic features", async () => {
     highlights.map((highlight) => highlight.range?.start?.line).sort(),
     [5, 6],
   );
+  assert.ok(links.some((link) =>
+    link.target === domainUri &&
+    link.range?.start?.line === 2 &&
+    link.range.start.character === 11
+  ));
   assert.equal(client.stderr, "");
 });
 

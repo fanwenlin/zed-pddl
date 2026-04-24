@@ -12,6 +12,7 @@ import {
   getAntlrSyntaxDiagnostics,
   getPddlWorkspaceDiagnostics,
 } from "./diagnostics";
+import { getDocumentLinks } from "./document-links";
 import { LspPddlWorkspace } from "./pddl-workspace";
 import { getSemanticDiagnostics } from "./semantic-diagnostics";
 import {
@@ -59,6 +60,9 @@ connection.onInitialize(() => ({
     textDocumentSync: TextDocumentSyncKind.Incremental,
     hoverProvider: true,
     documentHighlightProvider: true,
+    documentLinkProvider: {
+      resolveProvider: false,
+    },
     definitionProvider: true,
     referencesProvider: true,
     renameProvider: {
@@ -186,6 +190,16 @@ connection.onDocumentHighlight(async (params) => {
 
   await workspace.ensureParsed(document.uri);
   return getDocumentHighlights(workspace, document, params.position);
+});
+
+connection.onDocumentLinks(async (params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+
+  await workspace.ensureParsed(document.uri);
+  return getDocumentLinks(workspace, document);
 });
 
 connection.onCompletion(async (params): Promise<CompletionItem[]> => {

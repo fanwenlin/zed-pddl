@@ -54,6 +54,7 @@ This validates:
 - `rename`
 - `documentSymbol`
 - `documentHighlight`
+- `documentLink`
 - `semanticTokens/full`
 - syntax and semantic diagnostics
 
