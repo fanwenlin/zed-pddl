@@ -1,0 +1,21 @@
+{
+  "name": "antlr-pddl-ts-spike",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ANTLR + Pddl.g4 TypeScript parser spike for zed-pddl",
+  "scripts": {
+    "generate": "antlr4ts -visitor -no-listener -o src/generated grammar/Pddl.g4",
+    "build": "npm run generate && tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/test/**/*.test.js",
+    "parse:file": "npm run build && node dist/src/cli.js",
+    "summarize:file": "npm run build && node dist/src/cli.js --summary"
+  },
+  "dependencies": {
+    "antlr4ts": "^0.5.0-alpha.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "antlr4ts-cli": "^0.5.0-alpha.4",
+    "typescript": "^5.8.3"
+  }
+}

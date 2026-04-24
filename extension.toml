@@ -16,7 +16,7 @@ version = "0.1.0"
 
 [grammars.pddl]
 repository = "https://github.com/fanwenlin/tree-sitter-pddl"
-rev = "355c6a7e2e31bd155cabd242efd334b07268c8e3"
+rev = "b44ac9b2e52bc1ed859c703e824344bc2e1f0d7d"
 
 [language_servers.pddl-semantic]
 name = "PDDL LSP"

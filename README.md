@@ -7,10 +7,11 @@ Current scope:
 - `*.pddl` file association
 - line comments and bracket pairing
 - syntax highlighting for common PDDL forms and section keywords
-- Node-backed LSP for diagnostics, hover, definitions, references, rename, symbols, and completion
+- Node-backed TypeScript LSP for diagnostics, hover, definitions, references, rename, symbols, completion, and semantic tokens
+- ANTLR-generated TypeScript parser workspace for validating and summarizing PDDL documents
 - local dev-extension install flow for Zed
 
-This extension uses the rebuilt `tree-sitter-pddl` grammar in `/Users/fwl/src/zed-pddl/tree-sitter-pddl` as its parser source and adds a Node-based PDDL language server that wraps `pddl-workspace`. Zed syntax highlighting is mapped directly from the current PDDL node types exposed by that grammar.
+This extension uses the rebuilt `tree-sitter-pddl` grammar in `/Users/fwl/src/zed-pddl/tree-sitter-pddl` as its Zed parser source and runs the bundled TypeScript language server from `server/dist/pddl-lsp.cjs`. The ANTLR generator in `experiments/antlr-pddl-ts` is the retained parser-generation path for grammar validation and document summaries.
 
 ## Local development
 
@@ -28,8 +29,9 @@ and restart Zed.
 
 ## LSP prerequisites
 
-- `node` must be on your `PATH`, unless you override `lsp.pddl-semantic.binary.path`.
-- The bundled server build output must exist at `server/dist/pddl-lsp.cjs`.
+- The bundled server build output must exist at `server/dist/pddl-lsp.cjs` before compiling the extension.
+- Zed provides the Node runtime for the default server command.
+- You can override the command with `lsp.pddl-semantic.binary.path`.
 
 ## Verification
 
@@ -49,6 +51,21 @@ This validates:
 - `completion`
 - `rename`
 - `documentSymbol`
+- `semanticTokens/full`
+
+The tree-sitter grammar has its own corpus tests:
+
+```bash
+cd tree-sitter-pddl
+npm test
+```
+
+The ANTLR generator path is verified separately:
+
+```bash
+cd experiments/antlr-pddl-ts
+npm test
+```
 
 Example override:
 

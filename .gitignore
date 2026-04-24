@@ -1,5 +1,7 @@
 server/node_modules/
 server/dist/
+experiments/antlr-pddl-ts/node_modules/
+experiments/antlr-pddl-ts/dist/
+experiments/antlr-pddl-ts/src/generated/
 target/
 extension.wasm
-grammars/*.wasm
