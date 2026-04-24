@@ -208,9 +208,15 @@ test("protocol smoke test covers semantic features", async () => {
     position: { line: 14, character: 12 },
   })) as { signatures?: Array<{ label?: string }> };
 
+  const highlights = (await client.request("textDocument/documentHighlight", {
+    textDocument: { uri: problemUri },
+    position: { line: 5, character: 7 },
+  })) as Array<{ range?: { start?: { line?: number }; end?: { line?: number } } }>;
+
   await client.shutdown();
 
   assert.equal(initialize.capabilities.hoverProvider, true);
+  assert.equal(initialize.capabilities.documentHighlightProvider, true);
   assert.match(hover.contents?.value ?? "", /Predicate/);
   assert.match(definition.uri ?? "", /domain\.pddl$/);
   assert.ok(references.length >= 2);
@@ -223,6 +229,10 @@ test("protocol smoke test covers semantic features", async () => {
     signatureHelp.signatures?.some((signature) =>
       signature.label?.includes("(on ?x ?y - block)"),
     ),
+  );
+  assert.deepEqual(
+    highlights.map((highlight) => highlight.range?.start?.line).sort(),
+    [5, 6],
   );
   assert.equal(client.stderr, "");
 });

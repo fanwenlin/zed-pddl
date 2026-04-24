@@ -9,6 +9,7 @@ import {
   parser,
 } from "pddl-workspace";
 import {
+  DocumentHighlight,
   DocumentSymbol,
   Hover,
   Location,
@@ -390,6 +391,31 @@ export async function findSymbolReferences(
   }
 
   return locations;
+}
+
+export async function getDocumentHighlights(
+  workspace: LspPddlWorkspace,
+  document: TextDocument,
+  position: Position,
+): Promise<DocumentHighlight[]> {
+  const resolved = await resolveSymbol(workspace, document, position);
+  if (!resolved) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const references = await findSymbolReferences(workspace, document, resolved, true);
+  return references
+    .filter((reference) => reference.uri === document.uri)
+    .filter((reference) => {
+      const key = JSON.stringify(reference.range);
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .map((reference) => ({ range: reference.range }));
 }
 
 export async function buildRenameEdit(

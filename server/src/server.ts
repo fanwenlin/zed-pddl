@@ -22,6 +22,7 @@ import {
 import { getSignatureHelp } from "./signature";
 import {
   buildRenameEdit,
+  getDocumentHighlights,
   findSymbolReferences,
   getDocumentSymbols,
   resolveSymbol,
@@ -57,6 +58,7 @@ connection.onInitialize(() => ({
   capabilities: {
     textDocumentSync: TextDocumentSyncKind.Incremental,
     hoverProvider: true,
+    documentHighlightProvider: true,
     definitionProvider: true,
     referencesProvider: true,
     renameProvider: {
@@ -174,6 +176,16 @@ connection.onDocumentSymbol(async (params) => {
 
   await workspace.ensureParsed(document.uri);
   return getDocumentSymbols(workspace, document);
+});
+
+connection.onDocumentHighlight(async (params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+
+  await workspace.ensureParsed(document.uri);
+  return getDocumentHighlights(workspace, document, params.position);
 });
 
 connection.onCompletion(async (params): Promise<CompletionItem[]> => {

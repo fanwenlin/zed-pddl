@@ -53,6 +53,7 @@ This validates:
 - `completion`
 - `rename`
 - `documentSymbol`
+- `documentHighlight`
 - `semanticTokens/full`
 - syntax and semantic diagnostics
 
@@ -61,6 +62,12 @@ The tree-sitter grammar has its own corpus tests:
 ```bash
 cd tree-sitter-pddl
 npm test
+```
+
+The Zed query files can be checked against the current grammar and samples:
+
+```bash
+./scripts/check-zed-queries.sh
 ```
 
 The ANTLR generator path is verified separately:
