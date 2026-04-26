@@ -47,6 +47,16 @@ test("parses a minimal problem with zero syntax errors", () => {
   assert.equal(result.tree.type, "pddlDoc");
 });
 
+test("parses a final semicolon comment without a trailing newline", () => {
+  const result = parsePddlDocument(`(define (problem p)
+  (:domain d)
+  (:init)
+  (:goal (and)))
+; unload pkg1 truck1 c1 (1)`);
+
+  assert.equal(result.syntaxErrors.length, 0);
+});
+
 test("parses a derived predicate definition", () => {
   const result = parsePddlDocument(`(define (domain d)
   (:requirements :strips :typing :derived-predicates)
