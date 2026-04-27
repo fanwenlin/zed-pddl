@@ -4,7 +4,13 @@ import {
   Range,
   TextDocument,
 } from "vscode-languageserver/node";
-import { DomainInfo, FileInfo, ProblemInfo, Variable } from "pddl-workspace";
+import {
+  DomainInfo,
+  FileInfo,
+  ProblemInfo,
+  TypeObjectMap,
+  Variable,
+} from "pddl-workspace";
 import { LspPddlWorkspace } from "./pddl-workspace";
 
 type AtomNode = {
@@ -200,6 +206,10 @@ function directArgumentCount(node: ListNode): number {
   return node.children.slice(1).filter((child) => child.kind === "atom").length;
 }
 
+function directArgumentAtoms(node: ListNode): AtomNode[] {
+  return node.children.slice(1).filter((child): child is AtomNode => child.kind === "atom");
+}
+
 function expectedArgumentCount(variable: Variable): number {
   return variable.parameters.length;
 }
@@ -208,11 +218,81 @@ function isCallableContext(name: string): boolean {
   return !name.startsWith(":") && !name.startsWith("?") && !RESERVED_FORMS.has(lower(name));
 }
 
+function isObjectArgument(name: string): boolean {
+  return !name.startsWith("?") && !/^-?\d+(?:\.\d+)?$/.test(name);
+}
+
+function problemObjects(domainInfo: DomainInfo, problemInfo: ProblemInfo): TypeObjectMap {
+  return domainInfo.getConstants().merge(problemInfo.getObjectsTypeMap());
+}
+
+function typeMatches(
+  domainInfo: DomainInfo,
+  actualType: string,
+  expectedType: string,
+): boolean {
+  if (lower(expectedType) === "object" || lower(actualType) === lower(expectedType)) {
+    return true;
+  }
+
+  return domainInfo
+    .getTypesInheritingFromPlusSelf(expectedType)
+    .some((typeName) => lower(typeName) === lower(actualType));
+}
+
+function collectArgumentDiagnostics(
+  document: TextDocument,
+  node: ListNode,
+  callable: Variable,
+  domainInfo: DomainInfo,
+  problemInfo: ProblemInfo | undefined,
+  diagnostics: Diagnostic[],
+): void {
+  if (!problemInfo) {
+    return;
+  }
+
+  const objects = problemObjects(domainInfo, problemInfo);
+  const arguments_ = directArgumentAtoms(node);
+
+  for (const [index, argument] of arguments_.entries()) {
+    if (!isObjectArgument(argument.text)) {
+      continue;
+    }
+
+    const objectType = objects.getTypeOfCaseInsensitive(argument.text);
+    if (!objectType) {
+      diagnostics.push(
+        diagnostic(
+          `Undefined object or constant \`${argument.text}\`.`,
+          rangeFromOffsets(document, argument.start, argument.end),
+        ),
+      );
+      continue;
+    }
+
+    const parameter = callable.parameters[index];
+    if (!parameter || typeMatches(domainInfo, objectType.type, parameter.type)) {
+      continue;
+    }
+
+    const callableName = firstAtom(node)?.text ?? callable.name;
+    diagnostics.push(
+      diagnostic(
+        `\`${argument.text}\` has type \`${objectType.type}\`, but \`${callableName}\` expects \`${parameter.type}\`.`,
+        rangeFromOffsets(document, argument.start, argument.end),
+      ),
+    );
+  }
+}
+
 function collectCallableDiagnostics(
   document: TextDocument,
   node: SexpNode,
   predicates: CallableIndex,
   functions: CallableIndex,
+  domainInfo: DomainInfo,
+  problemInfo: ProblemInfo | undefined,
   diagnostics: Diagnostic[],
 ): void {
   if (node.kind === "atom") return;
@@ -230,7 +310,15 @@ function collectCallableDiagnostics(
   }
 
   for (const child of node.children.slice(1)) {
-    collectCallableDiagnostics(document, child, predicates, functions, diagnostics);
+    collectCallableDiagnostics(
+      document,
+      child,
+      predicates,
+      functions,
+      domainInfo,
+      problemInfo,
+      diagnostics,
+    );
   }
 
   if (!isCallableContext(name)) {
@@ -258,6 +346,15 @@ function collectCallableDiagnostics(
       ),
     );
   }
+
+  collectArgumentDiagnostics(
+    document,
+    node,
+    callable,
+    domainInfo,
+    problemInfo,
+    diagnostics,
+  );
 }
 
 function findWordRange(document: TextDocument, word: string): Range {
@@ -352,8 +449,17 @@ function diagnosticsForCallables(
   const diagnostics: Diagnostic[] = [];
   const predicates = callableIndex(domainInfo.getPredicates());
   const functions = callableIndex(domainInfo.getFunctions());
+  const problemInfo = fileInfo.isProblem() ? (fileInfo as ProblemInfo) : undefined;
   for (const expression of parseSexprs(document.getText())) {
-    collectCallableDiagnostics(document, expression, predicates, functions, diagnostics);
+    collectCallableDiagnostics(
+      document,
+      expression,
+      predicates,
+      functions,
+      domainInfo,
+      problemInfo,
+      diagnostics,
+    );
   }
 
   return diagnostics;

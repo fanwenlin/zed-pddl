@@ -7,7 +7,7 @@ Current scope:
 - `*.pddl` file association
 - line comments and bracket pairing
 - syntax highlighting for common PDDL forms and section keywords
-- Node-backed TypeScript LSP for ANTLR syntax diagnostics, semantic diagnostics, hover, signature help, definitions, references, rename, symbols, completion, and semantic tokens
+- Node-backed TypeScript LSP for ANTLR syntax diagnostics, semantic diagnostics for PDDL references, objects, types, and requirements, hover, signature help, definitions, references, rename, symbols, completion, and semantic tokens
 - ANTLR-generated TypeScript parser workspace for validating and summarizing PDDL documents
 - local dev-extension install flow for Zed
 

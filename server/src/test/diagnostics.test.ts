@@ -68,6 +68,65 @@ test("diagnoses undefined callables and callable arity mismatches", async () => 
   assert.ok(messages.some((message) => message.includes("`height` expects 1 argument")));
 });
 
+test("diagnoses undeclared problem objects in callable arguments", async () => {
+  const { workspace, documents } = await parseDocuments(
+    {
+      uri: "file:///objects-domain.pddl",
+      text: `(define (domain delivery)
+  (:requirements :strips :typing)
+  (:types city package)
+  (:predicates (at-package ?p - package ?c - city)))`,
+    },
+    {
+      uri: "file:///objects-problem.pddl",
+      text: `(define (problem p)
+  (:domain delivery)
+  (:objects c1 - city pkg1 - package)
+  (:init (at-package pkg2 c1))
+  (:goal (at-package pkg1 c2)))`,
+    },
+  );
+
+  const diagnostics = await getSemanticDiagnostics(workspace, documents[1]);
+  const messages = diagnostics.map((diagnostic) => diagnostic.message);
+
+  assert.ok(messages.some((message) => message.includes("Undefined object or constant `pkg2`")));
+  assert.ok(messages.some((message) => message.includes("Undefined object or constant `c2`")));
+});
+
+test("diagnoses callable argument type mismatches", async () => {
+  const { workspace, documents } = await parseDocuments(
+    {
+      uri: "file:///types-domain.pddl",
+      text: `(define (domain delivery)
+  (:requirements :strips :typing)
+  (:types city vehicle truck - vehicle package)
+  (:constants hub - city)
+  (:predicates (road ?from ?to - city) (at-truck ?t - truck ?c - city) (loaded ?p - package ?t - truck)))`,
+    },
+    {
+      uri: "file:///types-problem.pddl",
+      text: `(define (problem p)
+  (:domain delivery)
+  (:objects c1 - city truck1 - truck pkg1 - package)
+  (:init
+    (road c1 hub)
+    (road truck1 c1)
+    (loaded c1 truck1)
+    (at-truck pkg1 c1))
+  (:goal (and)))`,
+    },
+  );
+
+  const diagnostics = await getSemanticDiagnostics(workspace, documents[1]);
+  const messages = diagnostics.map((diagnostic) => diagnostic.message);
+
+  assert.ok(messages.some((message) => message.includes("`truck1` has type `truck`, but `road` expects `city`")));
+  assert.ok(messages.some((message) => message.includes("`c1` has type `city`, but `loaded` expects `package`")));
+  assert.ok(messages.some((message) => message.includes("`pkg1` has type `package`, but `at-truck` expects `truck`")));
+  assert.ok(!messages.some((message) => message.includes("hub")));
+});
+
 test("diagnoses requirements missing for used PDDL features", async () => {
   const { workspace, documents } = await parseDocuments({
     uri: "file:///requirements-domain.pddl",
