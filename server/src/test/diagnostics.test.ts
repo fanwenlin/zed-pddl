@@ -68,6 +68,36 @@ test("diagnoses undefined callables and callable arity mismatches", async () => 
   assert.ok(messages.some((message) => message.includes("`height` expects 1 argument")));
 });
 
+test("does not report arity errors for untyped predicate parameters", async () => {
+  const { workspace, documents } = await parseDocuments({
+    uri: "file:///untyped-domain.pddl",
+    text: `(define (domain delivery)
+  (:requirements :strips)
+  (:predicates
+    (truck ?t)
+    (city ?c)
+    (road ?from ?to)
+    (at-truck ?t ?c))
+  (:action move
+    :parameters (?t ?from ?to)
+    :precondition (and
+      (truck ?t)
+      (city ?from)
+      (city ?to)
+      (at-truck ?t ?from)
+      (road ?from ?to))
+    :effect (and
+      (not (at-truck ?t ?from))
+      (at-truck ?t ?to))))`,
+  });
+
+  const diagnostics = await getSemanticDiagnostics(workspace, documents[0]);
+  const messages = diagnostics.map((diagnostic) => diagnostic.message);
+
+  assert.ok(!messages.some((message) => message.includes("expects 0 arguments")));
+  assert.ok(!messages.some((message) => message.includes("expects 1 argument")));
+});
+
 test("diagnoses undeclared problem objects in callable arguments", async () => {
   const { workspace, documents } = await parseDocuments(
     {

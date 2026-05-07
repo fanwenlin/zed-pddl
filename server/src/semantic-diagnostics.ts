@@ -211,7 +211,10 @@ function directArgumentAtoms(node: ListNode): AtomNode[] {
 }
 
 function expectedArgumentCount(variable: Variable): number {
-  return variable.parameters.length;
+  const declaredParameterCount = [
+    ...variable.declaredName.matchAll(/\?[A-Za-z][\w-]*/g),
+  ].length;
+  return Math.max(variable.parameters.length, declaredParameterCount);
 }
 
 function isCallableContext(name: string): boolean {
